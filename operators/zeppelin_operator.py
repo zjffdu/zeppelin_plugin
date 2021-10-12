@@ -22,6 +22,8 @@ from airflow.utils.decorators import apply_defaults
 from airflow.contrib.hooks.zeppelin_hook import ZeppelinHook
 from airflow.utils.operator_helpers import context_to_airflow_vars
 import logging
+import time
+
 
 class ZeppelinOperator(BaseOperator):
 
@@ -36,40 +38,48 @@ class ZeppelinOperator(BaseOperator):
                  cluster_id = None,
                  params={},
                  clone_note=True,
-		         isolated=True,
-                 create_cluster_task_id = None,
-                 xcom_cluster_id_key = 'xcom_cluster_id',
+                 isolated=True,
                  *args,
                  **kwargs):
         super(ZeppelinOperator, self).__init__(*args, **kwargs)
         self.note_id = note_id
+        self.exec_note_id = note_id
         self.paragraph_id = paragraph_id
         self.user = user
         self.cluster_id = cluster_id
         self.params = params
         self.clone_note = clone_note
         self.isolated=isolated
-        self.create_cluster_task_id = create_cluster_task_id
-        self.xcom_cluster_id_key = xcom_cluster_id_key
         self.z_hook = ZeppelinHook.get_hook(conn_id)
 
     def execute(self, context):
         params = self.params
-        logging.info("context:" + str(context['dag'].default_args))
-        self.cluster_id = self.cluster_id if self.cluster_id != None else context['ti'].xcom_pull(task_ids=self.create_cluster_task_id, key=self.xcom_cluster_id_key)
-        if self.cluster_id == None and 'cluster_id' in context['dag'].default_args:
-            self.cluster_id = context['dag'].default_args['cluster_id']
-
         airflow_context_vars = context_to_airflow_vars(context, in_env_var_format=True)
-        params.update(airflow_context_vars)
         if self.note_id:
+            self.z_hook.refresh_note(self.note_id)
+            if self.clone_note:
+                note_json = self.z_hook.get_note(self.note_id)
+                note_name = note_json['name']
+                dest_note_path = '/airflow_jobs/' + note_name + "/" + note_name + '_' + airflow_context_vars['AIRFLOW_CTX_EXECUTION_DATE'].replace(':','-')
+                self.exec_note_id = self.z_hook.clone_note(self.note_id, dest_note_path)
             if self.paragraph_id:
-                self.z_hook.run_paragraph(self.note_id, self.paragraph_id, self.user, params, self.clone_note, self.cluster_id, True)
+                self.z_hook.run_paragraph(self.exec_note_id, self.paragraph_id, self.user, params, self.cluster_id, True)
             else:
-                self.z_hook.run_note(self.note_id, self.user, params, self.clone_note, self.cluster_id)
+                self.z_hook.run_note(self.exec_note_id, self.user, params, self.cluster_id)
         else:
             if not self.interpreter:
                 raise Exception('interpreter is not specified')
             if not self.code:
                 raise Exception('code is not specified')
             self.z_hook.run_code(self.interpreter, self.code, self.intp_properties)
+
+    def on_kill(self):
+        if self.note_id:
+            if self.paragraph_id:
+                logging.info("kill paragraph: " + self.paragraph_id)
+                self.z_hook.stop_paragraph(self.exec_note_id, self.paragraph_id)
+            else:
+                logging.info("kill note: " + self.exec_note_id)
+                self.z_hook.stop_note(self.exec_note_id)
+        time.sleep(3)
+        ZeppelinOperator.on_kill(self)

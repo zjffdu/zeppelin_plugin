@@ -41,6 +41,14 @@ class ZeppelinHook(BaseHook):
         z_conn = cls.get_connection(conn_id)
         return ZeppelinHook(z_conn=z_conn)
 
+    def refresh_note(self, note_id):
+        self.z_client.get_note(note_id, True)
+
+    def clone_note(self, note_id, dest_note_path):
+        cloned_note_id =  self.z_client.clone_note(note_id, dest_note_path)
+        logging.info("clone note: " + note_id + ", cloned_note_path: " + dest_note_path + ", cloned_note_id: " + cloned_note_id)
+        return cloned_note_id
+
     def run_note(self, note_id, user = None, params = {}, clone_note = True):
         """
         :param note_id:
@@ -65,6 +73,12 @@ class ZeppelinHook(BaseHook):
         else:
             logging.info("paragraph {} of note {} is executed successfully".format(paragraph_id, note_id))
             logging.info("associated job urls: " + str(paragraph_result.jobUrls))
+
+    def stop_note(self, note_id):
+        self.z_client.cancel_note(note_id)
+
+    def stop_paragraph(self, note_id, paragraph_id):
+        self.z_client.cancel_paragraph(note_id, paragraph_id)
 
     def run_code(self, interpreter, code, sub_interpreter = '', intp_properties = {}):
         """
