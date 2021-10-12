@@ -19,7 +19,7 @@
 
 from airflow.operators.bash_operator import BaseOperator
 from airflow.utils.decorators import apply_defaults
-from airflow.contrib.hooks.zeppelin_hook import ZeppelinHook
+from hooks.zeppelin_hook import ZeppelinHook
 from airflow.utils.operator_helpers import context_to_airflow_vars
 import logging
 import time
@@ -57,15 +57,19 @@ class ZeppelinOperator(BaseOperator):
         airflow_context_vars = context_to_airflow_vars(context, in_env_var_format=True)
         if self.note_id:
             self.z_hook.refresh_note(self.note_id)
-            if self.clone_note:
-                note_json = self.z_hook.get_note(self.note_id)
-                note_name = note_json['name']
-                dest_note_path = '/airflow_jobs/' + note_name + "/" + note_name + '_' + airflow_context_vars['AIRFLOW_CTX_EXECUTION_DATE'].replace(':','-')
-                self.exec_note_id = self.z_hook.clone_note(self.note_id, dest_note_path)
-            if self.paragraph_id:
-                self.z_hook.run_paragraph(self.exec_note_id, self.paragraph_id, self.user, params, self.cluster_id, True)
-            else:
-                self.z_hook.run_note(self.exec_note_id, self.user, params, self.cluster_id)
+            try:
+                if self.clone_note:
+                    note_json = self.z_hook.get_note(self.note_id)
+                    note_name = note_json['name']
+                    dest_note_path = '/airflow_jobs/' + note_name + "/" + note_name + '_' + airflow_context_vars['AIRFLOW_CTX_EXECUTION_DATE'].replace(':','-')
+                    self.exec_note_id = self.z_hook.clone_note(self.note_id, dest_note_path)
+                if self.paragraph_id:
+                    self.z_hook.run_paragraph(self.exec_note_id, self.paragraph_id, params, True)
+                else:
+                    self.z_hook.run_note(self.exec_note_id, params)
+            finally:
+                if self.clone_note and self.exec_note_id != self.note_id:
+                    self.z_hook.delete_note(self.exec_note_id)
         else:
             if not self.interpreter:
                 raise Exception('interpreter is not specified')

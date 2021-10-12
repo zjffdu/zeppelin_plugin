@@ -41,6 +41,12 @@ class ZeppelinHook(BaseHook):
         z_conn = cls.get_connection(conn_id)
         return ZeppelinHook(z_conn=z_conn)
 
+    def get_note(self, note_id):
+        return self.z_client.get_note(note_id)
+
+    def delete_note(self, note_id):
+        self.z_client.delete_note(note_id)
+
     def refresh_note(self, note_id):
         self.z_client.get_note(note_id, True)
 
@@ -49,25 +55,25 @@ class ZeppelinHook(BaseHook):
         logging.info("clone note: " + note_id + ", cloned_note_path: " + dest_note_path + ", cloned_note_id: " + cloned_note_id)
         return cloned_note_id
 
-    def run_note(self, note_id, user = None, params = {}, clone_note = True):
+    def run_note(self, note_id, params = {}):
         """
         :param note_id:
         :param user:
         :param params: parameters for running this note
         :param clone_note: whether clone a new note and run this cloned note
         """
-        note_result = self.z_client.execute_note(note_id, user, params, clone_note)
+        note_result = self.z_client.execute_note(note_id, params)
         if not note_result.is_success():
             raise Exception("Fail to run note, error message: {}".format(note_result.get_errors()))
         else:
             logging.info("note {} is executed successfully".format(note_id))
             logging.info("associated job urls: " + str(list(map(lambda p : (p.paragraph_id, p.jobUrls), note_result.paragraphs))))  
 
-    def run_paragraph(self, note_id, paragraph_id, user = None, params = {}, clone_note = True, isolated = False):
+    def run_paragraph(self, note_id, paragraph_id, params = {}, isolated = False):
         """
 
         """
-        paragraph_result = self.z_client.execute_paragraph(note_id, paragraph_id, user = user, params = params, clone_note = clone_note, isolated = isolated)
+        paragraph_result = self.z_client.execute_paragraph(note_id, paragraph_id, params = params, isolated = isolated)
         if not paragraph_result.is_success():
             raise Exception("Fail to run note, error message: {}".format(paragraph_result.get_errors()))
         else:
