@@ -67,7 +67,7 @@ class ZeppelinHook(BaseHook):
             raise Exception("Fail to run note, error message: {}".format(note_result.get_errors()))
         else:
             logging.info("note {} is executed successfully".format(note_id))
-            logging.info("associated job urls: " + str(list(map(lambda p : (p.paragraph_id, p.jobUrls), note_result.paragraphs))))  
+            logging.info("associated job urls: " + str(list(map(lambda p : (p.id, p.jobUrls), note_result.paragraphs))))
 
     def run_paragraph(self, note_id, paragraph_id, params = {}, isolated = False):
         """
